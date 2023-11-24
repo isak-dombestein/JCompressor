@@ -6,7 +6,7 @@ Note: Requires Node.js to be installed.
 
 In a terminal window, run 
 ``` bash
-node jcompressor.js [arguments]
+node jcompressor.js [arguments] # You can run jcompressor without the .js extension too. Both work!
 ```
 
 Supported arguments:
