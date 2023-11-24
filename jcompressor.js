@@ -1,55 +1,70 @@
-let jszip = require('jszip');
-var zip = new jszip();
 const fs = require('fs').promises;
 const path = require('path');
+const sharp = require('sharp');
+const jszip = require('jszip');
+
+let zip = new jszip();
+
+
 let inputPath = process.argv[3];
 let output = process.argv[5] || 'output.zip';
 let outputPath = process.argv[5] || './output';
 
 async function main() {
     // Check if user has provided any arguments
-if (process.argv.length === 2) {
-    console.error('No arguments provided. Use -h for reference.');
-    process.exit(1);
-}
-
-
-// Help documentation. 
-if(process.argv[2] === '-h' || process.argv[2] === '--help') {
-    console.log('JCompressor - A simple file compression utility written in Node.js');
-    console.log('Build: 0.1a - 2023-11-24')
-    console.log('Usage: node jcompressor.js [arguments]');
-    console.log();
-    console.log('Arguments:');
-    console.log('-z, --zip: Compresses the file into a zip file');
-    console.log('-u, --unzip: Unzips the file');
-    console.log('-o, --output: Output file name');
-    console.log('-h, --help: Displays this help message');
-    console.log();
-    console.log('Note: Output is set to output.zip by default for -z/--zip, and ./output for -u/--unzip.')
-    process.exit(0);
-}
-
-if (process.argv[2] === '-z' || process.argv[2] === '--zip') {
-    if (!process.argv[3]) {
-        console.log('No file was provided. A file or folder is required for -z or --zip.')
+    if (process.argv.length === 2) {
+        console.error('No arguments provided. Use -h for reference.');
         process.exit(1);
-    } else {
-        await compressToZip(zip, inputPath);
-        zip.generateAsync({ type: 'nodebuffer' }).then((content) => {
-            fs.writeFile(`${output}`, content);
-        });
+    }
+
+
+    // Help documentation. 
+    if(process.argv[2] === '-h' || process.argv[2] === '--help') {
+        console.log('JCompressor - A simple file compression utility written in Node.js');
+        console.log('Build: 0.1a - 2023-11-24')
+        console.log('Usage: node jcompressor.js [arguments]');
+        console.log();
+        console.log('Arguments:');
+        console.log('-i, --image: Compresses an image file');
+        console.log('-f, --format: Output format for image compression. Supported formats are: jpeg, png, webp, gif, tiff, avif, heif and raw.');
+        console.log('-z, --zip: Compresses a file or folder into a zip file');
+        console.log('-u, --unzip: Unzips a given zip file');
+        console.log('-o, --output: Output file name');
+        console.log('-h, --help: Displays this help message');
+        console.log();
+        console.log('Note: Output is set to output.zip by default for -z/--zip, and ./output for -u/--unzip.')
+        process.exit(0);
+    }
+
+    if (process.argv[2] === '-z' || process.argv[2] === '--zip') {
+        if (!process.argv[3]) {
+            console.log('No file was provided. A file or folder is required for -z or --zip.')
+            process.exit(1);
+        } else {
+            await compressToZip(zip, inputPath);
+            zip.generateAsync({ type: 'nodebuffer' }).then((content) => {
+                fs.writeFile(`${output}`, content);
+            });
+        }
+    }
+
+    if (process.argv[2] === '-u' || process.argv[2] === '--unzip') {
+        if (!process.argv[3]) {
+            console.log('No file was provided. Please provide a file to unzip.');
+        } else {
+            unzip(process.argv[3], outputPath);
+        }
+    }
+
+    if (process.argv[2] === '-i' || process.argv[2] === '--image') {
+        if (!process.argv[3]) {
+            console.log('No image was provided. Please provide an image you wish to compress.');
+        } else if (process.argv[4] === '-f' || process.argv[4] === '--format') {
+            compressImage(process.argv[3]);
+        }
     }
 }
 
-if (process.argv[2] === '-u' || process.argv[2] === '--unzip') {
-    if (!process.argv[3]) {
-        console.log('No file was provided. Please provide a file to unzip.');
-    } else {
-        unzip(process.argv[3], outputPath);
-    }
-}
-}
 
 async function checkIfFolder(path) {
     try {
@@ -63,9 +78,8 @@ async function checkIfFolder(path) {
             return 'Error';
         }
 
-        // return stats.isFile() ? 'File' : stats.isDirectory() ? 'Directory': 'Neither';
     } catch (err) {
-        // In case 404 File not found
+
         console.error(`Error: ${path} - ${err.message}`)
     }
 }
@@ -105,19 +119,28 @@ async function unzip(zipPath, outputPath) {
         await Promise.all(
             Object.keys(zipFile.files).map(async (filename) => {
                 const content = await zipFile.files[filename].async('nodebuffer');
-                const outputFilePath = path.join(outputPath, filename);  // Adjusted path construction
-                const outputDirectory = path.dirname(outputFilePath);
+                const outputFilePath = path.join(outputPath, filename);
 
-                // Create the directory if it doesn't exist
-                await fs.mkdir(outputDirectory, { recursive: true });
-
-                await fs.writeFile(outputFilePath, content);
+                if (zipFile.files[filename].dir) {
+                    await fs.mkdir(outputFilePath, { recursive: true });
+                } else {
+                    const outputDirectory = path.dirname(outputFilePath);
+                    await fs.mkdir(outputDirectory, { recursive: true });
+                    await fs.writeFile(outputFilePath, content);
+                }
             })
         );
         console.log(`Unzipped ${zipPath} to ${outputPath}`);
     } catch (error) {
         console.error(`Error while unzipping ${zipPath}: ${error}`);
     }
+}
+
+async function compressImage(imagePath) {
+    const [image, format] = imagePath.split('.');
+    let outputFormat = process.argv[5];
+    console.log(`Compressing ${image}.${format} to jcmp_${image}.${outputFormat}...`);
+
 }
 
 
