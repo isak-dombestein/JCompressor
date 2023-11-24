@@ -1,8 +1,6 @@
 # JCompressor
 A JavaScript-based compression tool. Supports compressing both individual files as well as entire folders.
 
-<hr>
-
 # Usage
 Note: Requires Node.js to be installed. 
 
@@ -33,13 +31,10 @@ Extracting files from zip file:
 node jcompressor -u node_modules_compressed.zip -o ./nodemodules # Creates a new folder 'nodemodules' and extracts the files to that folder.
 ```
 
-<hr>
-
 # Bugs and requests
 All bug reports and requests should be submitted as an issue on the repository.
 Issues will be addressed as soon as possible, but be aware that there might be delays from time to time in responding to issues.
 
-<hr>
 
 # License
 This project is licensed under GPLv3. Please read the LICENSE file for further information.
