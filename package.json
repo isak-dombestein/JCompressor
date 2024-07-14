@@ -1,7 +1,7 @@
 {
   "name": "jcompressor",
   "version": "0.3a",
-  "build-date": "2023-11-30",
+  "build-date": "2024-07-15",
   "description": "A Node-powered JavaScript file compression utility",
   "author": "Isak Dombestein",
   "main": "jcompressor.js",

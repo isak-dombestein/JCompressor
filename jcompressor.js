@@ -1,4 +1,5 @@
-const fs = require('fs').promises;
+const fs = require('fs');
+const fsp = require('fs').promises;
 const path = require('path');
 const sharp = require('sharp');
 const jszip = require('jszip');
@@ -76,7 +77,7 @@ async function main() {
     if (zipArg) {
          await compressToZip(zip, inputPath);
         zip.generateAsync({ type: 'nodebuffer' }).then((content) => {
-            fs.writeFile(`${output}`, content);
+            fsp.writeFile(`${output}`, content);
         });
 
     }
@@ -114,7 +115,7 @@ async function main() {
 
 async function checkIfFolder(path) {
     try {
-        const stats = await fs.stat(path);
+        const stats = await fsp.stat(path);
         if (stats.isFile()) {
             return 'File';
         } else if (stats.isDirectory()) {
@@ -136,14 +137,14 @@ async function compressToZip(zip, inputPath) {
 
     if (type === 'File') {
         try {
-            const content = await fs.readFile(inputPath);
+            const content = await fsp.readFile(inputPath);
             zip.file(path.basename(inputPath), content);
         } catch (error) {
             console.error(`Error while reading file ${inputPath}: ${error}`);
         }
     } else if (type === 'Directory') {
         try {
-            const files = await fs.readdir(inputPath);
+            const files = await fsp.readdir(inputPath);
             const filePromises = files.map(file =>
                 compressToZip(zip.folder(path.basename(inputPath)), path.join(inputPath, file))
             );
@@ -160,7 +161,7 @@ async function compressToZip(zip, inputPath) {
 
 async function unzip(zipPath, outputPath) {
     try {
-        const zipData = await fs.readFile(zipPath);
+        const zipData = await fsp.readFile(zipPath);
         const zipFile = await zip.loadAsync(zipData);
 
         await Promise.all(
@@ -169,11 +170,11 @@ async function unzip(zipPath, outputPath) {
                 const outputFilePath = path.join(outputPath, filename);
 
                 if (zipFile.files[filename].dir) {
-                    await fs.mkdir(outputFilePath, { recursive: true });
+                    await fsp.mkdir(outputFilePath, { recursive: true });
                 } else {
                     const outputDirectory = path.dirname(outputFilePath);
-                    await fs.mkdir(outputDirectory, { recursive: true });
-                    await fs.writeFile(outputFilePath, content);
+                    await fsp.mkdir(outputDirectory, { recursive: true });
+                    await fsp.writeFile(outputFilePath, content);
                 }
             })
         );
@@ -194,14 +195,14 @@ async function archiveStream(inputPath, strength, outputPath) {
 
     const readFile = async (inputPath) => {
         try {
-            return await fs.readFile(inputPath);
+            return await fsp.readFile(inputPath);
         } catch(error) {
             throw error;
         }
     }
 
     // Create the output stream. path.join used to ensure platform compatibliity.
-    const output = fs.open(path.join(__dirname, `${outputPath}.zip`, 'w'));
+    const output = fs.createWriteStream(path.join(__dirname, `${outputPath}.zip`, 'w'));
 
     // The top part is mostly just copied from the Archiver quick start guide. 
 
@@ -246,7 +247,7 @@ async function archiveStream(inputPath, strength, outputPath) {
     } else if (type === 'Directory') {
         try {
             // Zip code for folder here (write from folder / subfolder stream)
-            archive.directory(inputPath, {name: path.basename(inputPath)});
+            archive.directory(inputPath, path.basename(inputPath));
         } catch (error) {
             console.error(`Error while reading directory ${inputPath}: ${error}`);
         }
@@ -255,7 +256,7 @@ async function archiveStream(inputPath, strength, outputPath) {
     }    
 
     // Finalize the archive
-    archive.finalize();
+    await archive.finalize();
 
     // Close output stream
     output.close();
