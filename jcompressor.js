@@ -20,10 +20,12 @@ function checkArguments() {
         if(arg.startsWith('-')) {
             // Argument is a flag
             const nextArg = process.argv[i + 1];
-            args[arg] = nextArg;
-            i++; // We skip the next argument since it's the value for the flag
-        } else {
-            args[arg] = true; // Flag without value
+            if (nextArg && !nextArg.startsWith('-')) {
+                args[arg] = nextArg;
+                i++;
+            } else {
+                args[arg] = true; // Flag without value
+            }
         }
     }
     return args;
@@ -33,8 +35,6 @@ const parsedArgs = checkArguments();
 
 // Input Arguments
 const zipArg = parsedArgs['-z'] || parsedArgs['--zip'];
-const imageArg = parsedArgs['-i'] || parsedArgs['--image'];
-const formatArg = parsedArgs['-f'] || parsedArgs['--format'];
 const unzipArg = parsedArgs['-u'] || parsedArgs['--unzip'];
 const outputArg = parsedArgs['-o'] || parsedArgs['--output'];
 const strengthArg = parsedArgs['-s'] || parsedArgs['--strength'];
@@ -50,14 +50,12 @@ async function main() {
 
 
     // Help documentation. 
-    if(process.argv[2] === '-h' || process.argv[2] === '--help') {
+    if(helpArg) {
         console.log('JCompressor - A simple file compression utility written in Node.js');
         console.log('Build: 0.3a - 2023-11-30')
         console.log('Usage: node jcompressor.js [arguments]');
         console.log();
         console.log('Arguments:');
-        console.log('-i, --image: Compresses an image file');
-        console.log('-f, --format: Output format for image compression. Supported formats are: jpeg, png, webp, gif, tiff, avif, heif and raw.');
         console.log('-z, --zip: Compresses a file or folder into a zip file');
         console.log('-u, --unzip: Unzips a given zip file');
         console.log('-o, --output: Output file name');
@@ -75,40 +73,29 @@ async function main() {
     }
 
     if (zipArg) {
-         await compressToZip(zip, inputPath);
-        zip.generateAsync({ type: 'nodebuffer' }).then((content) => {
-            fsp.writeFile(`${output}`, content);
-        });
-
+         await compressToZip(zip, zipArg);
+         zip.generateAsync({ type: 'nodebuffer' }).then((content) => {
+            const output = outputArg || 'output.zip'; //Use the requested output name or default to output.zip.
+            fsp.writeFile(output, content);
+         });
     }
 
-    if (strengthArg === undefined || strengthArg === true) {
-        console.error('No compression level provided. Please provide a compression level between 0 and 9, or run again without -s or --strength for default compression.');
-        process.exit(1);
-    }
-
-    if (strengthArg) {
-        if (!outputArg || outputArg === undefined || outputArg === true) {
-            let defOutput = 'output.zip';
-            archiveStream(zipArg, strengthArg, defOutput)
+    if (unzipArg) {
+        if (!unzipArg || unzipArg === true) {
+            console.error('No file provided, please provide a file to unzip!');
+            process.exit(1);
         } else {
-            archiveStream(zipArg, strengthArg, outputArg)
+            unzip(unzipArg, outputPath);
         }
     }
 
-    if (checkArguments('-u') === true || checkArguments('--unzip') === true) {
-        if (!process.argv[3]) {
-            console.log('No file was provided. Please provide a file to unzip.');
+    if(strengthArg !== undefined) {
+        if (isNaN(strengthArg) || strengthArg < 0 || strengthArg > 9) {
+            console.error('Invalid number provided for compression level. Please provide a number between 0 and 9, or run again without -s or --strength for default compression level.');
+            process.exit(1);
         } else {
-            unzip(process.argv[3], outputPath);
-        }
-    }
-
-    if (checkArguments('-i') === true || checkArguments('--image') === true) {
-        if (!process.argv[3]) {
-            console.log('No image was provided. Please provide an image you wish to compress.');
-        } else  if (checkArguments('-f') === true || checkArguments('--format') === true) {
-            compressImage(process.argv[3]);
+            const output = outputArg || 'output.zip';
+            archiveStream(zipArg, parseInt(strengthArg), output);
         }
     }
 }
@@ -149,7 +136,7 @@ async function compressToZip(zip, inputPath) {
                 compressToZip(zip.folder(path.basename(inputPath)), path.join(inputPath, file))
             );
             await Promise.all(filePromises);
-            console.log(`Compressed ${inputPath} to ${output}`);
+            console.log(`Compressed ${inputPath} to ${outputArg}`);
         } catch (error) {
             console.error(`Error while reading directory ${inputPath}: ${error}`);
         }
@@ -184,43 +171,24 @@ async function unzip(zipPath, outputPath) {
     }
 }
 
-async function compressImage(imagePath) {
-    const [image, format] = imagePath.split('.');
-    let outputFormat = process.argv[5];
-    console.log(`Compressing ${image}.${format} to jcmp_${image}.${outputFormat}...`);
-
-}
-
 async function archiveStream(inputPath, strength, outputPath) {
-
-    const readFile = async (inputPath) => {
-        try {
-            return await fsp.readFile(inputPath);
-        } catch(error) {
-            throw error;
-        }
-    }
-
-    // Create the output stream. path.join used to ensure platform compatibliity.
-    const output = fs.createWriteStream(path.join(__dirname, `${outputPath}.zip`, 'w'));
-
-    // The top part is mostly just copied from the Archiver quick start guide. 
+    const output = fs.createWriteStream(outputPath);
 
     const archive = archiver('zip', {
         zlib: { level: strength }
     });
 
-    output.onclose = function() {
+    output.on('close', function() {
         console.log(archive.pointer() + ' total bytes');
-        console.log('Output finalized - file descriptor closed.');
-    };
+        console.log('Output Finalized, File descriptor closed');
+    });
 
-    output.onend = function() {
-        console.log('Drained data...');
-    };
+    output.on('end', function() {
+        console.log('Data has been drained');
+    });
 
     archive.on('warning', function(err) {
-        if (err.code == 'ENOENT') {
+        if (err.code === 'ENOENT') {
             console.log('ERROR ENOENT: ' + err.message);
         } else {
             throw err;
@@ -233,33 +201,25 @@ async function archiveStream(inputPath, strength, outputPath) {
 
     archive.pipe(output);
 
-    // Need to check if input is file or folder
     const type = await checkIfFolder(inputPath);
-
     if (type === 'File') {
         try {
-            // Append file to writestream
             const file = inputPath;
-            archive.append(fs.createReadStream(file), {name: path.basename(file)});
+            archive.append(fs.createReadStream(file), { name: path.basename(file) });
         } catch (error) {
             console.error(`Error while reading file ${inputPath}: ${error}`);
         }
     } else if (type === 'Directory') {
         try {
-            // Zip code for folder here (write from folder / subfolder stream)
             archive.directory(inputPath, path.basename(inputPath));
-        } catch (error) {
+        } catch(error) {
             console.error(`Error while reading directory ${inputPath}: ${error}`);
         }
     } else {
-        console.error(`Error: ${inputPath} is not a supported file type. If you believe this is an error, please submit an issue on the github repo (https://github.com/isak-dombestein/JCompressor)`);
-    }    
+        console.error(`Error: ${inputPath} is not a supported file type. If you believe this is an error, please sutmit an issue on the Github repo (https://github.com/isak-dombestein/JCompressor)`);
+    }
 
-    // Finalize the archive
     await archive.finalize();
-
-    // Close output stream
-    output.close();
 }
 
 

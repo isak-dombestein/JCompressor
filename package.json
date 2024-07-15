@@ -1,10 +1,13 @@
 {
   "name": "jcompressor",
-  "version": "0.3a",
+  "version": "0.4a",
   "build-date": "2024-07-15",
   "description": "A Node-powered JavaScript file compression utility",
   "author": "Isak Dombestein",
   "main": "jcompressor.js",
+  "scripts": {
+    "test": "echo \"No test specified\" && exit 0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/isak-dombestein/jcompressor"
