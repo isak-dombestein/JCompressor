@@ -4,6 +4,10 @@ const path = require('path');
 const jszip = require('jszip');
 const archiver = require('archiver');
 
+// Testing if yazl will provide better compression than archiver
+const zlib = require('zlib');
+const yazl = require('yazl');
+
 let zip = new jszip();
 
 
@@ -170,12 +174,9 @@ async function unzip(zipPath, outputPath) {
     }
 }
 
+/*
 async function archiveStream(inputPath, strength, outputPath) {
     const output = fs.createWriteStream(outputPath);
-
-    const archive = archiver('zip', {
-        zlib: { level: strength }
-    });
 
     output.on('close', function() {
         console.log(archive.pointer() + ' total bytes');
@@ -219,6 +220,48 @@ async function archiveStream(inputPath, strength, outputPath) {
     }
 
     await archive.finalize();
+}
+    */
+
+async function archiveStream(inputPath, strength, outputPath) {
+    const output = fs.createWriteStream(outputPath);
+    const zipFile = new yazl.ZipFile();
+
+    zipFile.outputStream.pipe(output).on('close', function() {
+        console.log('Output finalized, File descriptor closed.');
+    });
+
+    const type = await checkIfFolder(inputPath);
+    if (type === 'File') {
+        try {
+            zipFile.addFile(inputPath, path.basename(inputPath),  { compress: strength > strengthArg });
+        } catch(error) {
+            console.error(`Error while adding file ${inputPath}: ${error}`);
+        }
+    } else if (type === 'Directory') {
+        try {
+            await addDirectoryToZip(zipFile, inputPath, path.basename(inputPath), strength > strengthArg);
+        } catch(error) {
+            console.error(`Error while adding directory ${inputPath}: ${error}`);
+        }
+    } else {
+        console.error(`Error: ${inputPath} is not a supported file type. If you believe this is an error, please submit an issue on the Github repo (https://github.com/isak-dombestein/JCompressor)`);
+    }
+
+    zipFile.end();
+}
+
+async function addDirectoryToZip(zipFile, dirPath, dirName, compress) {
+    const files = await fsp.readdir(dirPath);
+    await Promise.all(files.map(async file => {
+        const filePath = path.join(dirPath, file);
+        const stats = await fsp.stat(filePath);
+        if(stats.isFile()) {
+            zipFile.addFile(filePath, path.join(dirName, file), { compress });
+        } else if (stats.isDirectory()) {
+            await addDirectoryToZip(zipFile, filePath, path.join(dirName, file), compress);
+        }
+    }));
 }
 
 
